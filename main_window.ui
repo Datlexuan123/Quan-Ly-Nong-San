@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1100</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Quản lý Sản phẩm Nông sản - GreenFarm</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    QMainWindow { background-color: #FFFFFF; }
+    * { font-family: "Segoe UI", Arial; font-size: 14px; color: #333; }
+   </string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout_main">
+    <property name="spacing">
+     <number>0</number>
+    </property>
+    <property name="leftMargin"><number>0</number></property>
+    <property name="topMargin"><number>0</number></property>
+    <property name="rightMargin"><number>0</number></property>
+    <property name="bottomMargin"><number>0</number></property>
+    
+    <item>
+     <widget class="QFrame" name="sidebar">
+      <property name="minimumSize"><size><width>240</width><height>0</height></size></property>
+      <property name="styleSheet">
+       <string notr="true">
+        QFrame#sidebar { background-color: #2D5A27; border: none; }
+        QPushButton { 
+            background-color: transparent; color: #BDC3C7; 
+            text-align: left; padding: 15px 25px; border: none; border-radius: 0px;
+        }
+        QPushButton:hover { background-color: #3E7A36; color: white; }
+        QPushButton#btn_active { 
+            background-color: #3E7A36; color: white; 
+            border-left: 5px solid #A5D6A7; font-weight: bold; 
+        }
+        QLabel#logo_text { color: white; font-size: 20px; font-weight: bold; margin: 20px; }
+       </string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_side">
+       <item>
+        <widget class="QLabel" name="logo_text">
+         <property name="text"><string>🌿 GREENFARM</string></property>
+        </widget>
+       </item>
+       <item><widget class="QPushButton" name="btn_home"><property name="text"><string> Trang chủ</string></property></widget></item>
+       <item><widget class="QPushButton" name="btn_active"><property name="text"><string> Quản lý Sản phẩm</string></property></widget></item>
+       <item><widget class="QPushButton" name="btn_pos"><property name="text"><string> Bán hàng (POS)</string></property></widget></item>
+       <item><widget class="QPushButton" name="btn_report"><property name="text"><string> Báo cáo &amp; Thống kê</string></property></widget></item>
+       <item><widget class="QPushButton" name="btn_setting"><property name="text"><string> Cài đặt</string></property></widget></item>
+       <item><spacer name="spacer_side"><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
+      </layout>
+     </widget>
+    </item>
+
+    <item>
+     <widget class="QWidget" name="content_area">
+      <property name="styleSheet"><string notr="true">background-color: #F8F9FA;</string></property>
+      <layout class="QVBoxLayout" name="verticalLayout_content">
+       <property name="spacing"><number>20</number></property>
+       <property name="contentsMargins"><number>30</number><number>30</number><number>30</number><number>30</number></property>
+
+       <item>
+        <layout class="QHBoxLayout" name="layout_header">
+         <item>
+          <widget class="QLabel" name="lbl_page_title">
+           <property name="text"><string>Quản lý Sản phẩm Nông sản</string></property>
+           <property name="styleSheet"><string notr="true">font-size: 22px; font-weight: bold;</string></property>
+          </widget>
+         </item>
+         <item><spacer name="h_spacer_1"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+         <item>
+          <widget class="QLineEdit" name="search_bar">
+           <property name="minimumSize"><size><width>300</width><height>35</height></size></property>
+           <property name="placeholderText"><string>Tìm kiếm sản phẩm...</string></property>
+           <property name="styleSheet">
+            <string notr="true">background-color: white; border: 1px solid #DDD; border-radius: 5px; padding-left: 10px;</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="btn_user">
+           <property name="text"><string>👤 Admin | Đăng xuất</string></property>
+           <property name="styleSheet"><string notr="true">background: transparent; border: none;</string></property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+
+       <item>
+        <layout class="QHBoxLayout" name="layout_actions">
+         <item>
+          <widget class="QPushButton" name="btn_add_new">
+           <property name="minimumSize"><size><width>180</width><height>40</height></size></property>
+           <property name="text"><string>+ Thêm sản phẩm mới</string></property>
+           <property name="styleSheet">
+            <string notr="true">background-color: #2D5A27; color: white; border-radius: 5px; font-weight: bold;</string>
+           </property>
+          </widget>
+         </item>
+         <item><spacer name="h_spacer_2"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+         <item><widget class="QLabel" name="lbl_filter"><property name="text"><string>Lọc theo loại:</string></property></widget></item>
+         <item>
+          <widget class="QComboBox" name="filter_box">
+           <property name="minimumSize"><size><width>150</width><height>35</height></size></property>
+           <item><property name="text"><string>Tất cả</string></property></item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+
+       <item>
+        <widget class="QTableWidget" name="table_data">
+         <property name="styleSheet">
+          <string notr="true">
+           QTableWidget { background-color: white; border: 1px solid #EEE; border-radius: 10px; }
+           QHeaderView::section { background-color: #FDFDFD; padding: 12px; border: none; border-bottom: 2px solid #EEE; font-weight: bold; }
+          </string>
+         </property>
+         <property name="rowCount"><number>4</number></property>
+         <property name="columnCount"><number>7</number></property>
+         <column><property name="text"><string>ID</string></property></column>
+         <column><property name="text"><string>Hình ảnh</string></property></column>
+         <column><property name="text"><string>Tên nông sản</string></property></column>
+         <column><property name="text"><string>Loại</string></property></column>
+         <column><property name="text"><string>Đơn vị</string></property></column>
+         <column><property name="text"><string>Giá bán (kg)</string></property></column>
+         <column><property name="text"><string>Tồn kho</string></property></column>
+         <column><property name="text"><string>Hành động</string></property></column>
+        </widget>
+       </item>
+
+       <item>
+        <layout class="QHBoxLayout" name="layout_footer">
+         <item><widget class="QLabel" name="lbl_info"><property name="text"><string>Hiển thị 1-10 trên 150</string></property></widget></item>
+         <item><spacer name="h_spacer_3"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item>
+         <item><widget class="QPushButton" name="btn_prev"><property name="text"><string>Previous</string></property></widget></item>
+         <item><widget class="QPushButton" name="btn_p1"><property name="text"><string>1</string></property><property name="styleSheet"><string notr="true">background: #2D5A27; color: white; border-radius: 3px; min-width: 30px;</string></property></widget></item>
+         <item><widget class="QPushButton" name="btn_p2"><property name="text"><string>2</string></property></widget></item>
+         <item><widget class="QPushButton" name="btn_next"><property name="text"><string>Next</string></property></widget></item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+</ui>
