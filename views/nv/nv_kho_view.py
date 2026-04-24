@@ -2,171 +2,109 @@ import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTableWidget, QTableWidgetItem,
-    QSpinBox, QComboBox, QMessageBox, QFrame, QApplication
+    QSpinBox, QComboBox, QMessageBox, QFrame
 )
 from PyQt6.QtCore import Qt
-
 from controllers.nv_nhaphang_controller import NvNhapHangController
 
-
 class NvKhoView(QWidget):
-    def __init__(self):
+    def __init__(self, user_data=None):
         super().__init__()
-
+        self.user_data = user_data if user_data else {}
         self.controller = NvNhapHangController()
+        self.init_ui()
 
-        # ===== LAYOUT CHÍNH =====
+    def init_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(15, 15, 15, 15)
 
-        # ===== HEADER =====
         header = QLabel("📦 QUẢN LÝ KHO & NHẬP HÀNG")
         header.setStyleSheet("font-size:22px; font-weight:bold; color:#2e7d32;")
         main_layout.addWidget(header)
 
-        # ===== KHUNG TRÊN =====
         top_frame = QFrame()
         top_frame.setStyleSheet("background:#f5f5f5; border-radius:10px; padding:10px;")
-
         top_layout = QHBoxLayout(top_frame)
 
-        # Nhà cung cấp
-        self.cbo_ncc = QComboBox()
-        self.cbo_ncc.setFixedWidth(300)
-
-        # Nhân viên
-        self.cbo_nv = QComboBox()
-        self.cbo_nv.setFixedWidth(200)
-
         top_layout.addWidget(QLabel("Nhà cung cấp:"))
+        self.cbo_ncc = QComboBox()
+        self.cbo_ncc.setFixedWidth(250)
         top_layout.addWidget(self.cbo_ncc)
 
-        top_layout.addSpacing(20)
-
-        top_layout.addWidget(QLabel("Nhân viên nhập:"))
-        top_layout.addWidget(self.cbo_nv)
+        ten_nv = self.user_data.get('ho_ten', 'Chưa xác định')
+        self.lbl_nv = QLabel(f"👤 Nhân viên: <b>{ten_nv}</b>")
+        self.lbl_nv.setStyleSheet("font-size: 14px; margin-left: 20px;")
+        top_layout.addWidget(self.lbl_nv)
 
         top_layout.addStretch()
-
         main_layout.addWidget(top_frame)
 
-        # ===== TABLE =====
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels([
-            "ID", "Tên sản phẩm", "Tồn kho", "Số lượng nhập", "Giá nhập"
-        ])
-
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background: white;
-                border-radius: 10px;
-                gridline-color: #ddd;
-            }
-        """)
-
+        self.table.setHorizontalHeaderLabels(["ID", "Tên sản phẩm", "Tồn kho", "Số lượng nhập", "Giá nhập"])
+        self.table.horizontalHeader().setStretchLastSection(True)
         main_layout.addWidget(self.table)
 
-        # ===== BUTTON =====
         self.btn_save = QPushButton("💾 XÁC NHẬN NHẬP HÀNG")
         self.btn_save.setFixedHeight(45)
-        self.btn_save.setStyleSheet("""
-            QPushButton {
-                background-color: #2e7d32;
-                color: white;
-                font-weight: bold;
-                border-radius: 8px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #1b5e20;
-            }
-        """)
-
+        self.btn_save.setStyleSheet("background-color:#2e7d32; color:white; font-weight:bold;")
+        # Kết nối sự kiện
+        self.btn_save.clicked.connect(self.save_nhap_hang) 
         main_layout.addWidget(self.btn_save)
 
-        # ===== LOAD DATA =====
-        self.load_data()
+        self.load_data_to_form()
 
-        # ===== EVENT =====
-        self.btn_save.clicked.connect(self.save_nhap_hang)
+    def load_data_to_form(self):
+        try:
+            nccs = self.controller.get_nhacungcap()
+            self.cbo_ncc.clear()
+            for ncc in nccs:
+                self.cbo_ncc.addItem(ncc['ten_ncc'], ncc['id'])
 
-    # ======================================================
-    # LOAD DỮ LIỆU
-    # ======================================================
-    def load_data(self):
-        products = self.controller.get_sanpham()
-        nccs = self.controller.get_nhacungcap()
+            products = self.controller.get_sanpham()
+            self.table.setRowCount(len(products))
+            for row, p in enumerate(products):
+                self.table.setItem(row, 0, QTableWidgetItem(str(p["id"])))
+                self.table.setItem(row, 1, QTableWidgetItem(p["ten_sp"])) 
+                self.table.setItem(row, 2, QTableWidgetItem(str(p["so_luong_ton"])))
 
-        # ===== LOAD NCC =====
-        self.cbo_ncc.clear()
-        for ncc in nccs:
-            text = f"{ncc['ten_ncc']} | {ncc['so_dien_thoai']}"
-            self.cbo_ncc.addItem(text, ncc["id"])
+                spin_qty = QSpinBox()
+                spin_qty.setRange(0, 10000)
+                self.table.setCellWidget(row, 3, spin_qty)
 
-        # ===== LOAD NHÂN VIÊN (tạm) =====
-        self.cbo_nv.clear()
-        self.cbo_nv.addItem("Nhân viên 1", 1)
-        self.cbo_nv.addItem("Nhân viên 2", 2)
+                spin_price = QSpinBox()
+                spin_price.setRange(0, 100000000)
+                spin_price.setSingleStep(1000)
+                self.table.setCellWidget(row, 4, spin_price)
+        except Exception as e:
+            QMessageBox.critical(self, "Lỗi", f"Không thể tải dữ liệu: {e}")
 
-        # ===== LOAD TABLE =====
-        self.table.setRowCount(len(products))
-
-        for row, p in enumerate(products):
-            # ID
-            self.table.setItem(row, 0, QTableWidgetItem(str(p["id"])))
-
-            # Tên
-            self.table.setItem(row, 1, QTableWidgetItem(p["ten_sp"]))
-
-            # Tồn kho
-            self.table.setItem(row, 2, QTableWidgetItem(str(p["so_luong_ton"])))
-
-            # Số lượng nhập
-            spin = QSpinBox()
-            spin.setMaximum(10000)
-            spin.setStyleSheet("padding:3px;")
-            self.table.setCellWidget(row, 3, spin)
-
-            # Giá nhập
-            price = QSpinBox()
-            price.setMaximum(100000000)
-            price.setStyleSheet("padding:3px;")
-            self.table.setCellWidget(row, 4, price)
-
-    # ======================================================
-    # LƯU NHẬP HÀNG
-    # ======================================================
+    # --- HÀM BỔ SUNG ĐỂ SỬA LỖI ---
     def save_nhap_hang(self):
-        danh_sach = []
+        id_ncc = self.cbo_ncc.currentData()
+        id_nv = self.user_data.get('id', 1)
+        danh_sach_sp = []
 
         for row in range(self.table.rowCount()):
-            sp_id = int(self.table.item(row, 0).text())
-            so_luong = self.table.cellWidget(row, 3).value()
-            gia = self.table.cellWidget(row, 4).value()
-
-            if so_luong > 0:
-                danh_sach.append({
-                    "id": sp_id,
-                    "so_luong": so_luong,
-                    "gia": gia
+            qty = self.table.cellWidget(row, 3).value()
+            price = self.table.cellWidget(row, 4).value()
+            
+            if qty > 0:
+                id_sp = int(self.table.item(row, 0).text())
+                danh_sach_sp.append({
+                    "id": id_sp,
+                    "so_luong": qty,
+                    "gia": price
                 })
 
-        # ===== VALIDATE =====
-        if not danh_sach:
-            QMessageBox.warning(self, "Lỗi", "Bạn chưa nhập sản phẩm nào!")
+        if not danh_sach_sp:
+            QMessageBox.warning(self, "Chú ý", "Vui lòng nhập số lượng cho ít nhất 1 sản phẩm!")
             return
 
-        id_ncc = self.cbo_ncc.currentData()
-        id_nv = self.cbo_nv.currentData()
-
         try:
-            self.controller.them_phieu_nhap(id_nv, id_ncc, danh_sach)
-
-            QMessageBox.information(self, "Thành công", "Nhập hàng thành công!")
-
-            # reload lại dữ liệu
-            self.load_data()
-
+            # Gọi controller lưu vào DB
+            if self.controller.them_phieu_nhap(id_nv, id_ncc, danh_sach_sp):
+                QMessageBox.information(self, "Thành công", "Đã nhập hàng và cập nhật kho!")
+                self.load_data_to_form() # Load lại bảng để cập nhật tồn kho mới
         except Exception as e:
-            QMessageBox.critical(self, "Lỗi", str(e))
+            QMessageBox.critical(self, "Lỗi", f"Lỗi khi lưu: {e}")

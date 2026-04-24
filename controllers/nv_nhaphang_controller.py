@@ -1,62 +1,63 @@
 from config.database import get_connection
 
-
 class NvNhapHangController:
-    def __init__(self):
-        self.conn = get_connection()
-
-    # ===== LẤY SẢN PHẨM =====
     def get_sanpham(self):
-        cursor = self.conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM san_pham")
-        return cursor.fetchall()
-
-    # ===== LẤY NHÀ CUNG CẤP =====
-    def get_nhacungcap(self):
-        cursor = self.conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM nha_cung_cap")
-        return cursor.fetchall()
-     
-     
-    # ===== THÊM PHIẾU NHẬP =====
-    def them_phieu_nhap(self, id_nhan_vien, id_ncc, danh_sach_sp):
-        cursor = self.conn.cursor()
-
+        conn = None; cursor = None
         try:
-            # 👉 validate
-            if not danh_sach_sp:
-                raise Exception("Danh sách sản phẩm rỗng")
+            conn = get_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, ten_sp, so_luong_ton FROM san_pham")
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Lỗi: {e}"); return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
 
-            if id_nhan_vien is None or id_ncc is None:
-                raise Exception("Thiếu nhân viên hoặc nhà cung cấp")
+    def get_nhacungcap(self):
+        conn = None; cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, ten_ncc FROM nha_cung_cap")
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Lỗi: {e}"); return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
 
-            # 👉 tính tổng tiền
-            tong_tien = sum(
-                (sp["so_luong"] or 0) * (sp["gia"] or 0)
-                for sp in danh_sach_sp
-            )
+    def them_phieu_nhap(self, id_nhan_vien, id_ncc, danh_sach_sp):
+        conn = None; cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            conn.start_transaction()
 
-            # 👉 insert bảng nhap_hang
+            tong_tien = sum((sp["so_luong"] * sp["gia"]) for sp in danh_sach_sp)
+
+            # 1. Insert bảng nhap_hang
             cursor.execute("""
                 INSERT INTO nhap_hang (ngay_nhap, id_nhan_vien, id_nha_cung_cap, tong_tien_nhap)
                 VALUES (NOW(), %s, %s, %s)
             """, (id_nhan_vien, id_ncc, tong_tien))
-
             phieu_id = cursor.lastrowid
 
-            # 👉 update tồn kho
+            # 2. Insert chi tiết và Update kho
             for sp in danh_sach_sp:
                 cursor.execute("""
-                    UPDATE san_pham
-                    SET so_luong_ton = so_luong_ton + %s
-                    WHERE id = %s
-                """, (sp["so_luong"], sp["id"]))
+                    INSERT INTO chi_tiet_nhap_hang (id_nhap_hang, id_san_pham, so_luong_nhap, gia_nhap, thanh_tien)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (phieu_id, sp["id"], sp["so_luong"], sp["gia"], sp["so_luong"] * sp["gia"]))
 
-            # 👉 commit
-            self.conn.commit()
+                cursor.execute("UPDATE san_pham SET so_luong_ton = so_luong_ton + %s WHERE id = %s", 
+                               (sp["so_luong"], sp["id"]))
 
-            return phieu_id  # trả về để dùng nếu cần
-
+            conn.commit()
+            return True
         except Exception as e:
-            self.conn.rollback()  # rollback nếu lỗi
+            if conn: conn.rollback()
             raise e
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()

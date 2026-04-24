@@ -23,9 +23,15 @@ class NvKhachHangView(QWidget):
         search_layout.addWidget(self.btn_search)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["ID", "Họ Tên", "SĐT", "Địa Chỉ"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        # QUAN TRỌNG: Đã đổi thành 5 cột
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["ID", "Họ Tên", "SĐT", "Địa Chỉ", "Điểm Tích Lũy"])
+        
+        # Cấu hình tự động giãn độ rộng các cột
+        header_view = self.table.horizontalHeader()
+        header_view.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # Cột ID thu nhỏ
+        header_view.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents) # Cột Điểm thu nhỏ
         
         left_container.addWidget(header)
         left_container.addLayout(search_layout)
@@ -50,7 +56,7 @@ class NvKhachHangView(QWidget):
         form_layout.addWidget(self.inp_dia_chi)
 
         self.btn_them = QPushButton("Thêm Khách")
-        self.btn_them.setStyleSheet("background-color: #2E7D32; color: white; padding: 8px;")
+        self.btn_them.setStyleSheet("background-color: #2E7D32; color: white; padding: 8px; font-weight: bold;")
         self.btn_lam_moi = QPushButton("Làm mới")
         
         form_layout.addWidget(self.btn_them)
