@@ -10,6 +10,22 @@ class HoaDonModel:
             'database': 'cuahang_nongsan'
         }
 
+    def ghi_log(self, id_nv, hanh_dong):
+        """Ghi lại lịch sử hoạt động vào bảng hệ thống log[cite: 19]"""
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**self.db_config)
+            cursor = conn.cursor()
+            sql = "INSERT INTO he_thong_log (id_nhan_vien, hanh_dong, thoi_gian) VALUES (%s, %s, NOW())"
+            cursor.execute(sql, (id_nv, hanh_dong))
+            conn.commit()
+        except Exception as e:
+            print(f"Lỗi ghi nhật ký: {e}")
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
     def get_orders_by_type(self, is_ship=True, status=None):
         conn = None
         cursor = None
@@ -29,7 +45,6 @@ class HoaDonModel:
                 query += " AND hd.trang_thai_giao = %s"
                 params.append(status)
             query += " ORDER BY hd.ngay_lap DESC"
-            
             cursor.execute(query, tuple(params))
             return cursor.fetchall()
         except Exception as e:

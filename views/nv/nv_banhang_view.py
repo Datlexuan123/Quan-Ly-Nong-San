@@ -1,3 +1,5 @@
+
+
 import os
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
@@ -10,10 +12,12 @@ from views.nv.nv_thanhtoan_view import NvThanhToanView
 from controllers.nv_banhang_controller import NvBanHangController
 
 class NvBanHangView(QWidget):
-    def __init__(self):
+    def __init__(self, user_data=None):
         super().__init__()
+        self.user_data = user_data if user_data else {} 
         self.controller = NvBanHangController()
         self.cart_data = {}
+        self.all_products = [] # Khởi tạo danh sách sản phẩm trống
         self.init_ui()
         self.load_initial_data()
 
@@ -25,7 +29,6 @@ class NvBanHangView(QWidget):
         # --- BÊN TRÁI: DANH SÁCH SẢN PHẨM ---
         left_layout = QVBoxLayout()
         
-        # Thanh tìm kiếm & Lọc
         filter_row = QHBoxLayout()
         self.txt_search = QLineEdit()
         self.txt_search.setPlaceholderText("🔍 Tìm theo mã hoặc tên sản phẩm...")
@@ -42,7 +45,6 @@ class NvBanHangView(QWidget):
         filter_row.addWidget(self.cbo_danhmuc)
         left_layout.addLayout(filter_row)
 
-        # Grid sản phẩm cuộn được
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet("border: none; background-color: #f5f5f5;")
@@ -73,8 +75,6 @@ class NvBanHangView(QWidget):
         self.cart_items_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.cart_scroll.setWidget(self.cart_items_widget)
 
-        # Phần tổng tiền thu nhỏ lại
-        summary_layout = QVBoxLayout()
         self.lbl_total = QLabel("Tổng cộng: 0 đ")
         self.lbl_total.setStyleSheet("font-size: 18px; font-weight: bold; color: #d32f2f; border: none;")
         self.lbl_total.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -92,7 +92,7 @@ class NvBanHangView(QWidget):
         main_layout.addWidget(cart_frame)
 
     def create_product_card(self, p):
-        """ Tạo thẻ sản phẩm giống hệt như ảnh bạn gửi """
+        """Tạo thẻ sản phẩm kèm kiểm tra trạng thái kinh doanh"""
         card = QFrame()
         card.setFixedSize(220, 320)
         card.setStyleSheet("""
@@ -102,7 +102,6 @@ class NvBanHangView(QWidget):
         v_layout = QVBoxLayout(card)
         v_layout.setContentsMargins(10, 10, 10, 10)
 
-        # Ảnh
         lbl_img = QLabel()
         lbl_img.setFixedSize(200, 150)
         lbl_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -113,21 +112,28 @@ class NvBanHangView(QWidget):
             lbl_img.setText("📷 No Image")
             lbl_img.setStyleSheet("color: #999; border: none;")
         
-        # Tên sản phẩm
         lbl_name = QLabel(p["ten_sp"])
         lbl_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_name.setStyleSheet("font-weight: bold; font-size: 14px; border: none; padding: 5px;")
 
-        # Giá
         lbl_price = QLabel(f"{float(p['gia_ban']):,.0f} đ")
         lbl_price.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_price.setStyleSheet("color: #2e7d32; font-weight: bold; font-size: 15px; border: none;")
 
-        # Nút thêm vào giỏ
-        btn_add = QPushButton("THÊM VÀO GIỎ")
+        # --- KIỂM TRA TRẠNG THÁI SẢN PHẨM (0: Bán, 1: Dừng) ---
+        is_stopped = p.get('trang_thai', 0) == 1
+        btn_add = QPushButton()
         btn_add.setFixedHeight(35)
-        btn_add.setStyleSheet("background-color: #81c784; color: white; font-weight: bold; border-radius: 5px;")
-        btn_add.clicked.connect(lambda _, prod=p: self.add_to_cart(prod))
+        
+        if not is_stopped:
+            btn_add.setText("THÊM VÀO GIỎ")
+            btn_add.setStyleSheet("background-color: #81c784; color: white; font-weight: bold; border-radius: 5px;")
+            btn_add.clicked.connect(lambda _, prod=p: self.add_to_cart(prod))
+        else:
+            # Nếu dừng bán: Đổi màu nút sang xám và vô hiệu hóa nút bấm[cite: 14]
+            btn_add.setText("TẠM NGƯNG")
+            btn_add.setEnabled(False)
+            btn_add.setStyleSheet("background-color: #bdc3c7; color: white; font-weight: bold; border-radius: 5px;")
 
         v_layout.addWidget(lbl_img)
         v_layout.addWidget(lbl_name)
@@ -144,9 +150,9 @@ class NvBanHangView(QWidget):
         self.refresh_cart_display()
 
     def refresh_cart_display(self):
-        """ Làm mới giỏ hàng với x1, x2 và nút tăng giảm """
         for i in reversed(range(self.cart_items_layout.count())):
-            self.cart_items_layout.itemAt(i).widget().setParent(None)
+            widget = self.cart_items_layout.itemAt(i).widget()
+            if widget: widget.setParent(None)
 
         total_all = 0
         for p_id, item in self.cart_data.items():
@@ -162,7 +168,6 @@ class NvBanHangView(QWidget):
             lbl_name = QLabel(f"<b>{info['ten_sp']}</b><br>{float(info['gia_ban']):,.0f}đ")
             lbl_name.setStyleSheet("border: none; font-size: 11px;")
             
-            # Cụm nút x1, x2 tăng giảm
             qty_layout = QHBoxLayout()
             btn_sub = QPushButton("-"); btn_sub.setFixedSize(20, 20)
             btn_sub.setStyleSheet("background-color: #e0e0e0; border-radius: 10px; font-weight: bold;")
@@ -196,27 +201,18 @@ class NvBanHangView(QWidget):
             return
 
         total = sum(item['qty'] * float(item['info']['gia_ban']) for item in self.cart_data.values())
+        dialog = NvThanhToanView(total, self.cart_data, self) 
         
-        # Mở dialog thanh toán
-        dialog = NvThanhToanView(total, self.cart_data, self)
-        
-        # Nếu nhấn "HOÀN TẤT HÓA ĐƠN" (Accepted)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            # 1. Xóa giỏ hàng cũ
             self.cart_data.clear()
-            self.refresh_cart_display() # <--- ĐÃ SỬA TÊN HÀM Ở ĐÂY
-            
-            # 2. CẬP NHẬT LẠI DANH SÁCH SẢN PHẨM TRÊN MÀN HÌNH
-            # Lấy lại dữ liệu mới nhất từ database (đã bị trừ tồn kho)
+            self.refresh_cart_display()
             self.all_products = self.controller.get_sanpham()
-            
-            # Hiển thị lại lên giao diện lưới sản phẩm
             self.display_products(self.all_products)
 
     def load_initial_data(self):
+        """Tải dữ liệu ban đầu bao gồm danh mục[cite: 14]"""
         self.all_products = self.controller.get_sanpham()
         self.display_products(self.all_products)
-        # Load danh mục
         dm_ids = sorted(list(set(str(p["id_danh_muc"]) for p in self.all_products if p.get("id_danh_muc"))))
         for dm in dm_ids: self.cbo_danhmuc.addItem(f"Danh mục {dm}")
 

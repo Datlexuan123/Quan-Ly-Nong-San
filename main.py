@@ -12,4 +12,4 @@ if __name__ == "__main__":
     login_ctrl = LoginController(login_window)
     
     login_window.show()
-    sys.exit(app.exec())
+    sys.exit(app.exec()) 

@@ -21,7 +21,6 @@ class OrderEditDialog(QDialog):
         # 2. Thông tin địa chỉ (Cho phép nhân viên sửa)
         layout.addWidget(QLabel("<b>📍 Địa chỉ giao hàng:</b>"))
         self.txt_address = QTextEdit()
-        # Lấy dữ liệu cũ từ bảng hoa_don
         dia_chi_cu = order_data.get('dia_chi_giao') if order_data.get('dia_chi_giao') else ""
         self.txt_address.setPlainText(dia_chi_cu)
         self.txt_address.setPlaceholderText("Nhập địa chỉ giao hàng mới...")
@@ -30,7 +29,6 @@ class OrderEditDialog(QDialog):
 
         # 3. Khu vực các nút bấm
         btn_layout = QHBoxLayout()
-        
         self.btn_cancel = QPushButton("Hủy bỏ")
         self.btn_cancel.setStyleSheet("padding: 10px; background-color: #f44336; color: white; border-radius: 4px; font-weight: bold;")
         self.btn_cancel.clicked.connect(self.reject)
@@ -41,7 +39,6 @@ class OrderEditDialog(QDialog):
         
         btn_layout.addWidget(self.btn_cancel)
         btn_layout.addWidget(self.btn_save)
-        
         layout.addLayout(btn_layout)
 
     def get_data(self):

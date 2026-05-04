@@ -1,3 +1,5 @@
+# views/nv/nv_main_view.py
+
 import sys
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
@@ -8,26 +10,27 @@ from PyQt6.QtCore import Qt
 # ===== IMPORT VIEW =====
 from views.nv.nv_banhang_view import NvBanHangView
 from views.nv.nv_kho_view import NvKhoView
-from views.nv.nv_kho_history_view import NvKhoHistoryView # Cần import này
+from views.nv.nv_kho_history_view import NvKhoHistoryView
 from views.nv.nv_khach_hang_view import NvKhachHangView 
 from views.nv.nv_ca_nhan_view import NvCaNhanView
 from views.nv.nv_don_hang_view import NvDonHangView
+from views.nv.nv_kiemkho_view import NvKiemKhoView # THÊM DÒNG NÀY
 
 # ===== IMPORT CONTROLLER =====
 from controllers.nv_khach_hang_controller import NvKhachHangController
 from controllers.nv_ca_nhan_controller import NvCaNhanController
 from controllers.nv_don_hang_controller import NvDonHangController
-from controllers.nv_kho_history_controller import NvKhoHistoryController # Cần import này
+from controllers.nv_kho_history_controller import NvKhoHistoryController
+from controllers.nv_kiemkho_controller import NvKiemKhoController # THÊM DÒNG NÀY
 
 class NvMainView(QMainWindow):
     def __init__(self, user_data=None):
         super().__init__()
-        self.user_data = user_data 
+        self.user_data = user_data if user_data else {}
 
         self.setWindowTitle("Giao diện nhân viên - Nông Sản Sạch")
         self.setGeometry(200, 200, 1300, 900)
 
-        # ===== Widget chính =====
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout(main_widget)
@@ -68,14 +71,14 @@ class NvMainView(QMainWindow):
         self.stack = QStackedWidget()
 
         # 1. Trang Bán hàng
-        self.page_banhang = NvBanHangView()
+        self.page_banhang = NvBanHangView(self.user_data)
         
-        # 2. Trang Kho (SỬ DỤNG QTabWidget)
+        # 2. Trang Kho
         self.container_kho = QWidget()
         layout_kho = QVBoxLayout(self.container_kho)
         layout_kho.setContentsMargins(0,0,0,0)
         
-        self.tabs_kho = QTabWidget() # ĐỊNH NGHĨA BIẾN NÀY ĐỂ HẾT LỖI
+        self.tabs_kho = QTabWidget()
         self.page_nhaphang = NvKhoView(self.user_data)
         self.page_kho_history = NvKhoHistoryView()
         
@@ -83,8 +86,10 @@ class NvMainView(QMainWindow):
         self.tabs_kho.addTab(self.page_kho_history, "📜 Lịch sử nhập kho")
         layout_kho.addWidget(self.tabs_kho)
 
-        # 3. Các trang khác
-        self.page_kiemkho = self.create_temp_page("Trang Kiểm Kho & Báo Hủy")
+        # 3. Trang Kiểm Kho (SỬA LẠI TẠI ĐÂY)
+        self.page_kiemkho = NvKiemKhoView(self.user_data)
+        
+        # 4. Các trang khác
         self.page_khachhang = NvKhachHangView()
         self.page_nhanvien = NvCaNhanView(self.user_data)
         self.page_donhang = NvDonHangView()
@@ -94,10 +99,11 @@ class NvMainView(QMainWindow):
         self.ctrl_nhanvien = NvCaNhanController(self.page_nhanvien)
         self.ctrl_donhang = NvDonHangController(self.page_donhang, self.user_data)
         self.ctrl_kho_history = NvKhoHistoryController(self.page_kho_history)
+        self.ctrl_kiemkho = NvKiemKhoController(self.page_kiemkho, self.user_data) # KẾT NỐI CONTROLLER KIỂM KHO
 
         # ADD VÀO STACK
         self.stack.addWidget(self.page_banhang)   # 0
-        self.stack.addWidget(self.container_kho)  # 1 (Chứa cả Nhập hàng và Lịch sử)
+        self.stack.addWidget(self.container_kho)  # 1
         self.stack.addWidget(self.page_kiemkho)   # 2
         self.stack.addWidget(self.page_khachhang) # 3
         self.stack.addWidget(self.page_nhanvien)  # 4
@@ -115,13 +121,12 @@ class NvMainView(QMainWindow):
         self.btn_nhanvien.clicked.connect(lambda: self.switch_page(self.page_nhanvien, self.btn_nhanvien))
         self.btn_logout.clicked.connect(self.handle_logout)
         
-        # Sự kiện khi chuyển Tab trong Kho để tự động load lại dữ liệu lịch sử mới
         self.tabs_kho.currentChanged.connect(self.on_kho_tab_changed)
 
         self.switch_page(self.page_banhang, self.btn_banhang)
 
     def on_kho_tab_changed(self, index):
-        if index == 1: # Tab Lịch sử
+        if index == 1:
             self.ctrl_kho_history.load_history()
 
     def create_nav_btn(self, text):
@@ -137,13 +142,12 @@ class NvMainView(QMainWindow):
 
     def switch_page(self, page, button):
         self.stack.setCurrentWidget(page)
+        # Tự động load lại sản phẩm khi vào trang Kiểm kho
+        if page == self.page_kiemkho:
+            self.ctrl_kiemkho.load_products()
+            
         for b in self.buttons: b.setChecked(False)
         button.setChecked(True)
-
-    def create_temp_page(self, title):
-        p = QWidget(); l = QVBoxLayout(p)
-        lbl = QLabel(title); lbl.setStyleSheet("font-size: 20px; padding: 20px; color: #666;")
-        l.addWidget(lbl); l.addStretch(); return p
     
     def handle_logout(self):
         from views.login_view import LoginView

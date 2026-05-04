@@ -1,177 +1,246 @@
 import os
+import qrcode
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QPushButton, QComboBox, QMessageBox, 
-    QFrame, QScrollArea, QWidget, QRadioButton, QButtonGroup
+    QFrame, QWidget, QRadioButton, QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 
 class NvThanhToanView(QDialog):
     def __init__(self, total_amount, cart_data, parent=None):
         super().__init__(parent)
+        self.original_total = total_amount
         self.total_amount = total_amount
-        self.cart_data = cart_data
-        self.discount = 0
+        self.cart_data = cart_data # Chứa thông tin mặt hàng từ giỏ hàng
         self.customer_id = None
+        self.points_available = 0
         self.points_used = 0
-        # Lấy ID nhân viên từ thông tin đăng nhập nếu có
         self.id_nv = 1
+        
         if parent and hasattr(parent, 'user_data') and parent.user_data:
             self.id_nv = parent.user_data.get('id', 1)
-            
+        
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("Xác nhận thanh toán & Phân loại đơn hàng")
-        self.setFixedSize(950, 750)
+        self.setWindowTitle("Xác nhận thanh toán")
+        self.setFixedSize(1000, 750) 
         self.setStyleSheet("background-color: #f8f9fa; font-family: 'Segoe UI', Arial;")
         
-        main_layout = QHBoxLayout(self)
-        
-        # --- BÊN TRÁI: PHÂN LOẠI ĐƠN HÀNG ---
-        left_frame = QFrame()
-        left_frame.setStyleSheet("background-color: white; border-radius: 10px; border: 1px solid #dee2e6;")
-        left_layout = QVBoxLayout(left_frame)
-        
-        left_layout.addWidget(QLabel("<h3>🧾 Hình thức nhận hàng</h3>"))
-        
-        # Group chọn loại đơn
-        type_group = QFrame()
-        type_group.setStyleSheet("background-color: #e8f5e9; border-radius: 8px; padding: 15px;")
-        type_v = QVBoxLayout(type_group)
-        
-        self.radio_store = QRadioButton("🏠 Mua tại cửa hàng")
-        self.radio_ship = QRadioButton("🛵 Giao hàng tận nơi (Ship)")
-        self.radio_store.setChecked(True) # Mặc định
-        
-        self.bg_type = QButtonGroup()
-        self.bg_type.addButton(self.radio_store)
-        self.bg_type.addButton(self.radio_ship)
-        
-        type_v.addWidget(self.radio_store)
-        type_v.addWidget(self.radio_ship)
-        
-        # Phần nhập địa chỉ (ẩn/hiện dựa trên lựa chọn Ship)
-        self.ship_info = QWidget()
-        ship_l = QVBoxLayout(self.ship_info)
-        ship_l.setContentsMargins(20, 10, 0, 0)
-        
-        self.txt_address = QLineEdit()
-        self.txt_address.setPlaceholderText("Nhập địa chỉ giao hàng cụ thể...")
-        self.txt_address.setFixedHeight(35)
-        
-        self.txt_note = QLineEdit()
-        self.txt_note.setPlaceholderText("Ghi chú cho nhân viên giao hàng...")
-        self.txt_note.setFixedHeight(35)
-        
-        ship_l.addWidget(QLabel("Địa chỉ giao hàng:"))
-        ship_l.addWidget(self.txt_address)
-        ship_l.addWidget(QLabel("Ghi chú ship:"))
-        ship_l.addWidget(self.txt_note)
-        self.ship_info.setVisible(False)
-        
-        type_v.addWidget(self.ship_info)
-        left_layout.addWidget(type_group)
-        left_layout.addStretch()
-        
-        # --- BÊN PHẢI: CHI TIẾT THANH TOÁN ---
-        right_frame = QFrame()
-        right_frame.setStyleSheet("background-color: white; border-radius: 10px; border: 1px solid #dee2e6;")
-        right_layout = QVBoxLayout(right_frame)
-        
-        right_layout.addWidget(QLabel("<h3>💳 Thanh toán</h3>"))
-        
-        # Hiển thị số tiền
-        money_layout = QVBoxLayout()
-        self.lbl_total = QLabel(f"Tổng tiền món: {self.total_amount:,.0f} đ")
-        self.lbl_final = QLabel(f"THÀNH TIỀN: {self.total_amount:,.0f} đ")
-        self.lbl_final.setStyleSheet("font-size: 22px; font-weight: bold; color: #d32f2f; margin: 10px 0;")
-        money_layout.addWidget(self.lbl_total)
-        money_layout.addWidget(self.lbl_final)
-        right_layout.addLayout(money_layout)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(10)
 
-        # Phương thức thanh toán (Tự động lọc)
-        right_layout.addWidget(QLabel("<b>Phương thức thanh toán:</b>"))
+        body_layout = QHBoxLayout()
+        
+        # --- CỘT TRÁI: KHÁCH HÀNG & GIAO HÀNG ---
+        left_col = QVBoxLayout()
+        
+        # 1. Khu vực Khách hàng & Điểm
+        cust_group = QGroupBox("👤 Thông tin khách hàng & Điểm")
+        cust_group.setStyleSheet("QGroupBox { font-weight: bold; color: #2e7d32; border: 1px solid #ccc; margin-top: 10px; padding: 10px; }")
+        cust_layout = QVBoxLayout(cust_group)
+        
+        phone_row = QHBoxLayout()
+        self.txt_phone = QLineEdit()
+        self.txt_phone.setPlaceholderText("Số điện thoại...")
+        self.txt_phone.setFixedHeight(35)
+        self.btn_search = QPushButton("Tìm")
+        self.btn_search.setFixedWidth(60)
+        self.btn_search.setStyleSheet("background-color: #0d6efd; color: white; font-weight: bold;")
+        self.btn_search.clicked.connect(self.handle_search_customer)
+        phone_row.addWidget(self.txt_phone)
+        phone_row.addWidget(self.btn_search)
+        cust_layout.addLayout(phone_row)
+        
+        self.txt_cust_name = QLineEdit()
+        self.txt_cust_name.setPlaceholderText("Họ tên khách hàng")
+        self.txt_cust_name.setFixedHeight(35)
+        cust_layout.addWidget(self.txt_cust_name)
+        
+        point_row = QHBoxLayout()
+        self.lbl_points = QLabel("Điểm hiện có: 0")
+        self.lbl_points.setStyleSheet("color: blue; font-weight: bold;")
+        self.txt_use_point = QLineEdit()
+        self.txt_use_point.setPlaceholderText("Nhập điểm dùng...")
+        self.txt_use_point.setFixedWidth(120)
+        self.btn_apply_point = QPushButton("Dùng điểm")
+        self.btn_apply_point.clicked.connect(self.apply_points_logic)
+        
+        point_row.addWidget(self.lbl_points)
+        point_row.addStretch()
+        point_row.addWidget(self.txt_use_point)
+        point_row.addWidget(self.btn_apply_point)
+        cust_layout.addLayout(point_row)
+        left_col.addWidget(cust_group)
+        
+        # 2. Khu vực Nhận hàng
+        ship_group = QGroupBox("🚚 Hình thức nhận hàng")
+        ship_group.setStyleSheet("QGroupBox { font-weight: bold; color: #1976d2; border: 1px solid #ccc; margin-top: 10px; padding: 10px; }")
+        ship_layout = QVBoxLayout(ship_group)
+        self.radio_store = QRadioButton("Mua trực tiếp tại cửa hàng")
+        self.radio_ship = QRadioButton("Giao hàng tận nơi (Ship)")
+        self.radio_store.setChecked(True)
+        self.txt_ship_addr = QLineEdit()
+        self.txt_ship_addr.setPlaceholderText("Nhập địa chỉ giao hàng...")
+        self.txt_ship_addr.setFixedHeight(35)
+        self.txt_ship_addr.setVisible(False)
+        ship_layout.addWidget(self.radio_store)
+        ship_layout.addWidget(self.radio_ship)
+        ship_layout.addWidget(self.txt_ship_addr)
+        self.radio_ship.toggled.connect(self.txt_ship_addr.setVisible)
+        left_col.addWidget(ship_group)
+        
+        body_layout.addLayout(left_col, 4)
+        
+        # --- CỘT PHẢI: CHI TIẾT MẶT HÀNG & THANH TOÁN ---
+        right_col = QVBoxLayout()
+        
+        # 3. Bảng danh sách mặt hàng (MỚI THÊM)
+        item_group = QGroupBox("🛒 Danh sách mặt hàng")
+        item_group.setStyleSheet("QGroupBox { font-weight: bold; border: 1px solid #ccc; margin-top: 10px; padding: 5px; }")
+        item_layout = QVBoxLayout(item_group)
+        
+        self.table_items = QTableWidget()
+        self.table_items.setColumnCount(3)
+        self.table_items.setHorizontalHeaderLabels(["Tên hàng", "SL", "Thành tiền"])
+        self.table_items.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table_items.setFixedHeight(200) # Giới hạn chiều cao bảng
+        self.load_cart_to_table() # Gọi hàm đổ dữ liệu vào bảng
+        item_layout.addWidget(self.table_items)
+        right_col.addWidget(item_group)
+
+        # 4. Thông tin tiền & Phương thức
+        pay_group = QGroupBox("💳 Thanh toán")
+        pay_group.setStyleSheet("QGroupBox { font-weight: bold; color: #d32f2f; border: 1px solid #ccc; padding: 10px; }")
+        pay_layout = QVBoxLayout(pay_group)
+        
+        self.lbl_total_display = QLabel(f"TỔNG CỘNG: {self.total_amount:,.0f} đ")
+        self.lbl_total_display.setStyleSheet("font-size: 24px; font-weight: bold; color: red;")
+        pay_layout.addWidget(self.lbl_total_display)
+        
         self.cbo_method = QComboBox()
-        self.cbo_method.setFixedHeight(40)
-        self.cbo_method.setStyleSheet("padding-left: 10px; border: 1px solid #ccc;")
-        right_layout.addWidget(self.cbo_method)
+        self.cbo_method.addItems(["Tiền mặt", "Chuyển khoản"])
+        self.cbo_method.setFixedHeight(35)
+        self.cbo_method.currentTextChanged.connect(self.update_qr)
+        pay_layout.addWidget(QLabel("<b>Phương thức:</b>"))
+        pay_layout.addWidget(self.cbo_method)
         
-        right_layout.addStretch()
+        self.qr_label = QLabel()
+        self.qr_label.setFixedSize(150, 150)
+        self.qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.qr_label.setStyleSheet("border: 1px dashed #bbb; background: white;")
+        self.qr_label.setVisible(False)
+        pay_layout.addWidget(self.qr_label, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        self.btn_finish = QPushButton("✅ HOÀN TẤT THANH TOÁN")
-        self.btn_finish.setFixedHeight(55)
-        self.btn_finish.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_finish.setStyleSheet("""
-            QPushButton { background-color: #2e7d32; color: white; font-size: 16px; font-weight: bold; border-radius: 5px; }
-            QPushButton:hover { background-color: #1b5e20; }
-        """)
-        self.btn_finish.clicked.connect(self.handle_finish_payment)
-        right_layout.addWidget(self.btn_finish)
+        right_col.addWidget(pay_group)
+        body_layout.addLayout(right_col, 6)
         
-        main_layout.addWidget(left_frame, 1)
-        main_layout.addWidget(right_frame, 1)
+        main_layout.addLayout(body_layout)
+        
+        # Nút xác nhận
+        self.btn_confirm = QPushButton("✅ HOÀN TẤT THANH TOÁN")
+        self.btn_confirm.setFixedHeight(60)
+        self.btn_confirm.setStyleSheet("background-color: #198754; color: white; font-size: 18px; font-weight: bold; border-radius: 8px;")
+        self.btn_confirm.clicked.connect(self.handle_finish_payment)
+        main_layout.addWidget(self.btn_confirm)
 
-        # Kết nối sự kiện
-        self.radio_store.toggled.connect(self.update_payment_methods)
-        self.radio_ship.toggled.connect(self.update_payment_methods)
-        self.radio_ship.toggled.connect(lambda c: self.ship_info.setVisible(c))
-        
-        # Khởi tạo danh sách phương thức lần đầu
-        self.update_payment_methods()
-
-    def update_payment_methods(self):
-        """Lọc phương thức thanh toán dựa trên loại đơn hàng"""
-        self.cbo_method.clear()
-        if self.radio_ship.isChecked():
-            # Đơn ship chỉ chấp nhận tiền mặt khi nhận hàng hoặc chuyển khoản trước
-            self.cbo_method.addItems(["Tiền mặt (COD)", "Chuyển khoản"])
-        else:
-            # Mua tại quầy có thêm quẹt thẻ
-            self.cbo_method.addItems(["Tiền mặt", "Chuyển khoản", "Quẹt thẻ ATM"])
-
-    def handle_finish_payment(self):
-        """Xử lý lưu hóa đơn vào cơ sở dữ liệu"""
-        # 1. Thu thập dữ liệu từ giao diện
-        is_ship = self.radio_ship.isChecked()
-        loai_don = 1 if is_ship else 0 # 1: Ship, 0: Tại cửa hàng
-        
-        addr = self.txt_address.text().strip() if is_ship else ""
-        # Kiểm tra nếu chọn ship mà không nhập địa chỉ
-        if is_ship and not addr:
-            QMessageBox.warning(self, "Chú ý", "Vui lòng nhập địa chỉ giao hàng!")
-            return
+    def load_cart_to_table(self):
+        """Đổ dữ liệu từ cart_data vào bảng hiển thị"""
+        self.table_items.setRowCount(len(self.cart_data))
+        row = 0
+        for p_id, item in self.cart_data.items():
+            # Lấy tên sản phẩm dựa trên cột 'ten_sp' trong database của bạn
+            name = item['info'].get('ten_sp', 'Sản phẩm không tên')
+            qty = item['qty']
+            price = float(item['info'].get('gia_ban', 0))
             
-        note = self.txt_note.text().strip() if is_ship else "Mua tại quầy"
-        
-        # Trạng thái: Ship thì 'Chờ xác nhận' (0), Tại quầy thì 'Đã giao' (2)
-        stt_giao = 0 if is_ship else 2 
-        
-        pt_thanh_toan = self.cbo_method.currentText()
-        
-        # 2. Gọi Controller để lưu
+            # Tính thành tiền cho dòng này
+            line_total = qty * price
+            
+            # Đổ dữ liệu vào các cột của bảng QTableWidget
+            self.table_items.setItem(row, 0, QTableWidgetItem(name))
+            self.table_items.setItem(row, 1, QTableWidgetItem(str(qty)))
+            self.table_items.setItem(row, 2, QTableWidgetItem(f"{line_total:,.0f}"))
+            row += 1
+
+    # --- CÁC HÀM XỬ LÝ LOGIC (Giữ nguyên) ---
+    def handle_search_customer(self):
+        sdt = self.txt_phone.text().strip()
+        if not sdt: return
         from controllers.nv_banhang_controller import NvBanHangController
         ctrl = NvBanHangController()
-        
-        # Tính toán điểm (giả sử 10k được 1 điểm)
-        points_earned = int(self.total_amount / 10000)
-        
-        success, msg = ctrl.save_invoice(
-            cart_data=self.cart_data, 
-            total=self.total_amount, 
-            customer_id=self.customer_id, 
-            id_nv=self.id_nv, 
-            points_used=self.points_used, 
-            points_earned=points_earned,
-            loai_don_hang=loai_don, 
-            dia_chi_giao=addr, 
-            trang_thai_giao=stt_giao, 
-            ghi_chu=note, 
-            phuong_thuc=pt_thanh_toan # Tham số mới
-        )
-        
-        if success:
-            QMessageBox.information(self, "Thành công", f"Đã lưu đơn hàng thành công!\nLoại đơn: {'Giao hàng' if is_ship else 'Tại chỗ'}")
-            self.accept()
+        kh = ctrl.get_customer_by_phone(sdt)
+        if kh:
+            self.customer_id = kh['id']
+            self.txt_cust_name.setText(kh['ho_ten'])
+            self.points_available = kh.get('diem_tich_luy', 0)
+            self.lbl_points.setText(f"Điểm hiện có: {self.points_available}")
+            self.txt_ship_addr.setText(kh.get('dia_chi', ''))
         else:
-            QMessageBox.warning(self, "Lỗi", f"Không thể lưu hóa đơn: {msg}")
+            self.customer_id = None
+            self.lbl_points.setText("Khách mới (0 điểm)")
+
+    def apply_points_logic(self):
+        try:
+            val = int(self.txt_use_point.text() or 0)
+            if val > self.points_available:
+                QMessageBox.warning(self, "Lỗi", "Không đủ điểm!")
+                return
+            self.points_used = val
+            discount = val * 1000 
+            self.total_amount = self.original_total - discount
+            if self.total_amount < 0: self.total_amount = 0
+            self.lbl_total_display.setText(f"TỔNG CỘNG: {self.total_amount:,.0f} đ")
+            QMessageBox.information(self, "Xong", f"Đã dùng {val} điểm. Giảm: {discount:,.0f} đ")
+        except:
+            QMessageBox.warning(self, "Lỗi", "Nhập số điểm hợp lệ!")
+
+    def update_qr(self, method):
+        if method == "Chuyển khoản":
+            qr = qrcode.make(f"STK: 123456 - So tien: {self.total_amount}")
+            qr.save("pay.png")
+            self.qr_label.setPixmap(QPixmap("pay.png").scaled(150, 150))
+            self.qr_label.setVisible(True)
+        else:
+            self.qr_label.setVisible(False)
+
+    def handle_finish_payment(self):
+        sdt = self.txt_phone.text().strip()
+        ten = self.txt_cust_name.text().strip()
+        if not sdt or not ten:
+            QMessageBox.warning(self, "Lỗi", "Thiếu SĐT hoặc Tên khách!")
+            return
+        
+        # Kiểm tra hình thức nhận hàng
+        is_ship = self.radio_ship.isChecked()
+        addr = self.txt_ship_addr.text().strip() if is_ship else "Mua tại quầy"
+        
+        # LOGIC MỚI: Định nghĩa trạng thái giao hàng
+        # Nếu là Ship -> Trạng thái 0 (Chờ xử lý)
+        # Nếu mua tại quầy -> Trạng thái 2 (Đã giao)
+        trang_thai = 0 if is_ship else 2 
+
+        from controllers.nv_banhang_controller import NvBanHangController
+        ctrl = NvBanHangController()
+        points_earned = int(self.total_amount / 20000)
+
+        success, msg = ctrl.save_invoice(
+            self.cart_data, 
+            self.total_amount, 
+            self.customer_id, 
+            self.id_nv,
+            self.points_used, 
+            points_earned, 
+            (1 if is_ship else 0), # Loại đơn hàng (1: Ship, 0: Tại quầy)
+            addr, 
+            trang_thai, # SỬA TẠI ĐÂY: Thay con số 2 bằng biến trang_thai
+            "", 
+            self.cbo_method.currentText(), 
+            sdt, 
+            ten
+        )
+        if success: self.accept()
+        else: QMessageBox.critical(self, "Lỗi", msg)

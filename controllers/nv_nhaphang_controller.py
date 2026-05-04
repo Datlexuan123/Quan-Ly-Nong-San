@@ -1,6 +1,25 @@
 from config.database import get_connection
+from models.nhaphang_model import NhapHangModel
 
 class NvNhapHangController:
+    def __init__(self):
+        self.import_model = NhapHangModel()
+
+    def ghi_log(self, id_nv, hanh_dong):
+        """Hàm dùng chung để ghi lại lịch sử hoạt động hệ thống"""
+        conn = None; cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            sql = "INSERT INTO he_thong_log (id_nhan_vien, hanh_dong, thoi_gian) VALUES (%s, %s, NOW())"
+            cursor.execute(sql, (id_nv, hanh_dong))
+            conn.commit()
+        except Exception as e:
+            print(f"Lỗi ghi nhật ký: {e}")
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
     def get_sanpham(self):
         conn = None; cursor = None
         try:
@@ -27,6 +46,9 @@ class NvNhapHangController:
             if cursor: cursor.close()
             if conn: conn.close()
 
+    def get_import_history(self):
+        return self.import_model.get_import_history()
+
     def them_phieu_nhap(self, id_nhan_vien, id_ncc, danh_sach_sp):
         conn = None; cursor = None
         try:
@@ -36,14 +58,12 @@ class NvNhapHangController:
 
             tong_tien = sum((sp["so_luong"] * sp["gia"]) for sp in danh_sach_sp)
 
-            # 1. Insert bảng nhap_hang
             cursor.execute("""
                 INSERT INTO nhap_hang (ngay_nhap, id_nhan_vien, id_nha_cung_cap, tong_tien_nhap)
                 VALUES (NOW(), %s, %s, %s)
             """, (id_nhan_vien, id_ncc, tong_tien))
             phieu_id = cursor.lastrowid
 
-            # 2. Insert chi tiết và Update kho
             for sp in danh_sach_sp:
                 cursor.execute("""
                     INSERT INTO chi_tiet_nhap_hang (id_nhap_hang, id_san_pham, so_luong_nhap, gia_nhap, thanh_tien)
@@ -54,6 +74,10 @@ class NvNhapHangController:
                                (sp["so_luong"], sp["id"]))
 
             conn.commit()
+            
+            # GHI LOG SAU KHI NHẬP HÀNG THÀNH CÔNG
+            self.ghi_log(id_nhan_vien, f"Đã nhập phiếu hàng #{phieu_id} từ NCC ID {id_ncc}")
+            
             return True
         except Exception as e:
             if conn: conn.rollback()
