@@ -2,9 +2,12 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QFrame, QPushButton, QSizePolicy, QDialog, QTableWidget, QTableWidgetItem
+    QFrame, QPushButton, QDialog, QTableWidget, 
+    QTableWidgetItem, QHeaderView, QComboBox
 )
-from PyQt6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QCategoryAxis
+from PyQt6.QtCharts import (
+    QChart, QChartView, QLineSeries, QValueAxis, QCategoryAxis
+)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPainter, QFont
 from config.database import get_connection
@@ -18,180 +21,183 @@ class AdminDashboardView(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(15, 15, 15, 15)
-        self.layout.setSpacing(10)
+        self.layout.setSpacing(15)
 
-        # --- HEADER & REFRESH ---
-        header_top_layout = QHBoxLayout()
+        # --- 1. HEADER ---
+        header_layout = QHBoxLayout()
         title_main = QLabel("📊 TỔNG QUAN HỆ THỐNG")
-        title_main.setStyleSheet("font-size: 22px; font-weight: bold; color: #333;")
-        self.btn_refresh = QPushButton("🔄 Làm mới dữ liệu")
-        self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_refresh.setFixedWidth(160)
+        title_main.setStyleSheet("font-size: 20px; font-weight: bold; color: #2e7d32;")
+        
+        self.combo_filter = QComboBox()
+        self.combo_filter.addItems(["7 Ngày gần nhất", "Theo Tuần", "Theo Tháng"])
+        self.combo_filter.currentIndexChanged.connect(self.load_real_data)
+        
+        self.btn_refresh = QPushButton("🔄 Làm mới")
         self.btn_refresh.clicked.connect(self.load_real_data)
-        header_top_layout.addWidget(title_main)
-        header_top_layout.addStretch()
-        header_top_layout.addWidget(self.btn_refresh)
-        self.layout.addLayout(header_top_layout)
+        
+        header_layout.addWidget(title_main)
+        header_layout.addStretch()
+        header_layout.addWidget(QLabel("Lọc:"))
+        header_layout.addWidget(self.combo_filter)
+        header_layout.addWidget(self.btn_refresh)
+        self.layout.addLayout(header_layout)
 
-        # 1. KPI CARDS - Thêm sự kiện Click cho từng hộp[cite: 8, 9]
+        # --- 2. KPI CARDS ---
         card_layout = QHBoxLayout()
+        self.card_rev, self.lbl_rev = self.create_card("DOANH THU", "0 VNĐ", "#2e7d32")
+        self.card_ord, self.lbl_ord = self.create_card("ĐƠN HÀNG MỚI", "0", "#1565c0")
+        self.card_stock, self.lbl_stock = self.create_card("SẮP HẾT HÀNG", "0 SP", "#d32f2f")
+        self.card_waste, self.lbl_waste = self.create_card("HÀNG HỦY", "0 SP", "#f57c00")
         
-        self.card_doanh_thu, self.lbl_value_doanh_thu = self.create_card("DOANH THU HÔM NAY", "0 VNĐ", "#2e7d32")
-        self.card_don_hang, self.lbl_value_don_hang = self.create_card("ĐƠN HÀNG MỚI", "0", "#1565c0")
-        self.card_canh_bao, self.lbl_value_canh_bao = self.create_card("SẮP HẾT HÀNG", "0 SP", "#d32f2f")
-        self.card_hang_huy, self.lbl_value_hang_huy = self.create_card("HÀNG HỦY HÔM NAY", "0 SP", "#ff9800")
+        self.card_ord.mousePressEvent = self.open_order_detail
+        self.card_stock.mousePressEvent = self.open_stock_detail
+        self.card_waste.mousePressEvent = self.open_waste_detail
         
-        # Thiết lập hiệu ứng bàn tay và sự kiện nhấn chuột
-        for card in [self.card_doanh_thu, self.card_don_hang, self.card_canh_bao, self.card_hang_huy]:
-            card.setCursor(Qt.CursorShape.PointingHandCursor)
-            
-        self.card_don_hang.mousePressEvent = self.open_order_detail
-        self.card_canh_bao.mousePressEvent = self.open_stock_detail
-        self.card_hang_huy.mousePressEvent = self.open_waste_detail
-
-        card_layout.addWidget(self.card_doanh_thu)
-        card_layout.addWidget(self.card_don_hang)
-        card_layout.addWidget(self.card_canh_bao)
-        card_layout.addWidget(self.card_hang_huy)
+        for c in [self.card_rev, self.card_ord, self.card_stock, self.card_waste]:
+            card_layout.addWidget(c)
         self.layout.addLayout(card_layout)
 
-        # 2. BIỂU ĐỒ HAI TRỤC TUNG[cite: 8, 9]
+        # --- 3. BASIC LINE CHART ---
         self.chart = QChart()
-        self.chart.setTitle("XU HƯỚNG KINH DOANH (7 NGÀY)")
+        self.chart.setTitle("Biểu đồ doanh thu và đơn hàng")
         
-        self.series_revenue = QLineSeries(); self.series_revenue.setName("Doanh thu (VNĐ)")
-        self.series_orders = QLineSeries(); self.series_orders.setName("Số đơn hàng")
-        self.series_waste = QLineSeries(); self.series_waste.setName("Hàng hủy")
+        self.series_revenue = QLineSeries()
+        self.series_revenue.setName("Doanh thu (VNĐ)")
+        self.series_orders = QLineSeries()
+        self.series_orders.setName("Số đơn hàng")
 
         self.chart.addSeries(self.series_revenue)
         self.chart.addSeries(self.series_orders)
-        self.chart.addSeries(self.series_waste)
-
-        axis_font = QFont("Arial", 12, QFont.Weight.Bold)
 
         self.axis_x = QCategoryAxis()
-        self.axis_x.setLabelsFont(axis_font)
         self.chart.addAxis(self.axis_x, Qt.AlignmentFlag.AlignBottom)
+        self.series_revenue.attachAxis(self.axis_x)
+        self.series_orders.attachAxis(self.axis_x)
 
         self.axis_y_left = QValueAxis()
-        self.axis_y_left.setTitleText("Doanh thu (VNĐ)")
-        self.axis_y_left.setLabelsFont(axis_font)
-        self.axis_y_left.setLabelFormat("%d")
+        self.axis_y_left.setTitleText("VNĐ")
         self.chart.addAxis(self.axis_y_left, Qt.AlignmentFlag.AlignLeft)
+        self.series_revenue.attachAxis(self.axis_y_left)
 
         self.axis_y_right = QValueAxis()
-        self.axis_y_right.setTitleText("Số lượng (SP/Đơn)")
-        self.axis_y_right.setLabelsFont(axis_font)
-        self.axis_y_right.setLabelFormat("%d")
+        self.axis_y_right.setTitleText("Đơn hàng")
         self.chart.addAxis(self.axis_y_right, Qt.AlignmentFlag.AlignRight)
-
-        self.series_revenue.attachAxis(self.axis_x)
-        self.series_revenue.attachAxis(self.axis_y_left)
-        self.series_orders.attachAxis(self.axis_x)
         self.series_orders.attachAxis(self.axis_y_right)
-        self.series_waste.attachAxis(self.axis_x)
-        self.series_waste.attachAxis(self.axis_y_right)
 
         self.chart_view = QChartView(self.chart)
         self.chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.layout.addWidget(self.chart_view, stretch=1)
+        self.layout.addWidget(self.chart_view)
 
     def create_card(self, title, value, color):
         card = QFrame()
-        card.setStyleSheet(f"background-color: {color}; border-radius: 10px; color: white;")
-        card.setFixedHeight(115)
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+        card.setStyleSheet(f"background-color: {color}; border-radius: 8px; color: white;")
+        card.setFixedHeight(90)
         l = QVBoxLayout(card)
-        t_lbl = QLabel(title)
-        t_lbl.setStyleSheet("font-size: 11px; font-weight: bold; border: none;")
-        v_lbl = QLabel(value)
-        v_lbl.setStyleSheet("font-size: 20px; font-weight: bold; border: none;")
-        l.addWidget(t_lbl)
-        l.addWidget(v_lbl)
-        return card, v_lbl
-
-    # --- CÁC HÀM MỞ FORM CHI TIẾT ---[cite: 8]
-    def open_stock_detail(self, event):
-        """Mở chi tiết sản phẩm sắp hết hàng"""
-        self.show_detail_dialog("Sản phẩm sắp hết hàng", 
-            "SELECT ten_sp, so_luong_ton FROM san_pham WHERE so_luong_ton < 10",
-            ["Tên sản phẩm", "Số lượng tồn"])
-
-    def open_order_detail(self, event):
-        """Mở chi tiết đơn hàng mới hôm nay"""
-        self.show_detail_dialog("Đơn hàng mới chờ xử lý", 
-            "SELECT id, tong_tien FROM hoa_don WHERE trang_thai_giao = 0",
-            ["Mã hóa đơn", "Tổng tiền"])
-
-    def open_waste_detail(self, event):
-        """Mở chi tiết hàng hủy hôm nay"""
-        self.show_detail_dialog("Chi tiết hàng hủy hôm nay", 
-            "SELECT id_san_pham, so_luong_huy, ly_do FROM thanh_ly_huy_hang WHERE DATE(ngay_huy) = CURDATE()",
-            ["ID Sản phẩm", "Số lượng", "Lý do"])
+        t = QLabel(title); t.setStyleSheet("font-size: 12px; font-weight: bold;")
+        v = QLabel(value); v.setStyleSheet("font-size: 20px; font-weight: bold;")
+        l.addWidget(t); l.addWidget(v)
+        return card, v
 
     def show_detail_dialog(self, title, sql, headers):
-        """Hàm chung để tạo cửa sổ hiển thị bảng dữ liệu[cite: 8]"""
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
-        dialog.setMinimumSize(400, 300)
-        layout = QVBoxLayout(dialog)
+        dialog.setMinimumSize(700, 400) # Tăng kích thước để hiện đủ thông tin
+        l = QVBoxLayout(dialog)
         table = QTableWidget()
         table.setColumnCount(len(headers))
         table.setHorizontalHeaderLabels(headers)
-        
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         try:
             conn = get_connection()
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
             cursor.execute(sql)
             rows = cursor.fetchall()
             table.setRowCount(len(rows))
             for i, row in enumerate(rows):
                 for j, val in enumerate(row.values()):
-                    table.setItem(i, j, QTableWidgetItem(str(val)))
+                    # Định dạng tiền tệ nếu là cột cuối (Tổng tiền)
+                    text = f"{val:,.0f} VNĐ" if isinstance(val, (int, float)) and j == len(headers)-1 else str(val or "")
+                    table.setItem(i, j, QTableWidgetItem(text))
             conn.close()
-        except Exception as e: print(f"Lỗi tải chi tiết: {e}")
-        
-        layout.addWidget(table)
-        dialog.exec()
+        except Exception as e: print(f"Lỗi hiển thị bảng: {e}")
+        l.addWidget(table); dialog.exec()
+
+    def open_order_detail(self, e):
+        # SQL kết nối các bảng để lấy tên khách và chi tiết sản phẩm[cite: 7]
+        query = """
+            SELECT 
+                h.id AS 'Mã đơn', 
+                COALESCE(k.ho_ten, 'Khách lẻ') AS 'Khách hàng', 
+                GROUP_CONCAT(CONCAT(s.ten_sp, ' (x', ct.so_luong, ')') SEPARATOR ', ') AS 'Chi tiết SP',
+                h.tong_tien AS 'Tổng tiền'
+            FROM hoa_don h
+            LEFT JOIN khach_hang k ON h.id_khach_hang = k.id
+            LEFT JOIN chi_tiet_hoa_don ct ON h.id = ct.id_hoa_don
+            LEFT JOIN san_pham s ON ct.id_san_pham = s.id
+            WHERE h.trang_thai_giao = 0
+            GROUP BY h.id
+        """
+        self.show_detail_dialog("📑 Đơn hàng chờ xử lý", query, ["Mã đơn", "Khách hàng", "Chi tiết SP", "Tổng tiền"])
+
+    def open_stock_detail(self, e):
+        self.show_detail_dialog("📦 Sản phẩm sắp hết hàng", 
+            "SELECT ten_sp, so_luong_ton FROM san_pham WHERE so_luong_ton < 10", ["Tên sản phẩm", "Số lượng tồn"])
+
+    def open_waste_detail(self, e):
+        # SQL lấy tên sản phẩm thay vì ID[cite: 7]
+        query = """
+            SELECT 
+                s.ten_sp AS 'Sản phẩm', 
+                t.so_luong_huy AS 'Số lượng', 
+                t.ly_do AS 'Lý do hủy'
+            FROM thanh_ly_huy_hang t
+            JOIN san_pham s ON t.id_san_pham = s.id
+            WHERE DATE(t.ngay_huy) = CURDATE()
+        """
+        self.show_detail_dialog("🗑️ Chi tiết hàng hủy hôm nay", query, ["Sản phẩm", "Số lượng", "Lý do hủy"])
 
     def load_real_data(self):
-        """Cập nhật dữ liệu KPI[cite: 8, 9]"""
         try:
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT SUM(tong_tien) as total FROM hoa_don WHERE DATE(ngay_lap) = CURDATE()")
-            self.lbl_value_doanh_thu.setText(f"{cursor.fetchone()['total'] or 0:,.0f} VNĐ")
-            cursor.execute("SELECT COUNT(*) as total FROM hoa_don WHERE trang_thai_giao = 0")
-            self.lbl_value_don_hang.setText(str(cursor.fetchone()['total']))
-            cursor.execute("SELECT COUNT(*) as total FROM san_pham WHERE so_luong_ton < 10")
-            self.lbl_value_canh_bao.setText(f"{cursor.fetchone()['total']} SP")
-            cursor.execute("SELECT SUM(so_luong_huy) as total FROM thanh_ly_huy_hang WHERE DATE(ngay_huy) = CURDATE()")
-            self.lbl_value_hang_huy.setText(f"{cursor.fetchone()['total'] or 0} SP")
-            self.update_chart_data(cursor)
+            # Dùng đúng cột ngay_lap từ database của bạn[cite: 7, 11]
+            cursor.execute("SELECT SUM(tong_tien) as t FROM hoa_don WHERE DATE(ngay_lap) = CURDATE()")
+            self.lbl_rev.setText(f"{cursor.fetchone()['t'] or 0:,.0f} VNĐ")
+            cursor.execute("SELECT COUNT(*) as t FROM hoa_don WHERE trang_thai_giao = 0")
+            self.lbl_ord.setText(str(cursor.fetchone()['t']))
+            cursor.execute("SELECT COUNT(*) as t FROM san_pham WHERE so_luong_ton < 10")
+            self.lbl_stock.setText(f"{cursor.fetchone()['t']} SP")
+            cursor.execute("SELECT SUM(so_luong_huy) as t FROM thanh_ly_huy_hang WHERE DATE(ngay_huy) = CURDATE()")
+            self.lbl_waste.setText(f"{cursor.fetchone()['t'] or 0} SP")
+            
+            self.update_chart(cursor)
             conn.close()
-        except Exception as e: print(f"Lỗi Dashboard: {e}")
+        except Exception as e: print(f"Lỗi tải dữ liệu: {e}")
 
-    def update_chart_data(self, cursor):
-        """Cập nhật biểu đồ[cite: 8, 9]"""
-        query = """
-            SELECT DATE(ngay_lap) as ngay, SUM(tong_tien) as doanh_thu,
-            COUNT(id) as so_don, (SELECT SUM(so_luong_huy) FROM thanh_ly_huy_hang 
-            WHERE DATE(ngay_huy) = DATE(h.ngay_lap)) as hang_huy
-            FROM hoa_don h WHERE ngay_lap >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-            GROUP BY DATE(ngay_lap) ORDER BY ngay ASC
-        """
-        cursor.execute(query)
+    def update_chart(self, cursor):
+        mode = self.combo_filter.currentText()
+        if mode == "Theo Tuần":
+            q = "SELECT DATE_FORMAT(ngay_lap, 'Tuần %u') as l, SUM(tong_tien) as d, COUNT(id) as s FROM hoa_don GROUP BY l ORDER BY ngay_lap DESC LIMIT 8"
+        elif mode == "Theo Tháng":
+            q = "SELECT DATE_FORMAT(ngay_lap, 'Tháng %m') as l, SUM(tong_tien) as d, COUNT(id) as s FROM hoa_don GROUP BY l ORDER BY ngay_lap DESC LIMIT 6"
+        else:
+            q = "SELECT DATE_FORMAT(ngay_lap, '%d/%m') as l, SUM(tong_tien) as d, COUNT(id) as s FROM hoa_don WHERE ngay_lap >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY l ORDER BY ngay_lap ASC"
+
+        cursor.execute(q)
         data = cursor.fetchall()
-        self.series_revenue.clear(); self.series_orders.clear(); self.series_waste.clear()
+        
+        self.series_revenue.clear(); self.series_orders.clear()
         for cat in self.axis_x.categoriesLabels(): self.axis_x.remove(cat)
-
-        max_rev = 1000; max_small = 5 
+        
+        max_d = 1000; max_s = 5
         for i, row in enumerate(data):
-            d_str = row['ngay'].strftime("%d/%m")
-            rev, ords, wast = float(row['doanh_thu'] or 0), float(row['so_don'] or 0), float(row['hang_huy'] or 0)
-            self.series_revenue.append(i, rev); self.series_orders.append(i, ords); self.series_waste.append(i, wast)
-            self.axis_x.append(d_str, i)
-            max_rev = max(max_rev, rev); max_small = max(max_small, ords, wast)
-
-        self.axis_y_left.setRange(0, max_rev * 1.2) 
-        self.axis_y_right.setRange(0, max_small + 2) 
+            self.series_revenue.append(i, float(row['d'] or 0))
+            self.series_orders.append(i, float(row['s'] or 0))
+            self.axis_x.append(row['l'], i)
+            max_d = max(max_d, float(row['d'] or 0))
+            max_s = max(max_s, float(row['s'] or 0))
+            
+        self.axis_y_left.setRange(0, max_d * 1.2)
+        self.axis_y_right.setRange(0, max_s + 2)
         self.axis_x.setRange(0, len(data) - 1 if data else 1)
