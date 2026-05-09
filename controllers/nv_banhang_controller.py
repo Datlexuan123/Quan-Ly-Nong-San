@@ -50,21 +50,28 @@ class NvBanHangController:
                                     dia_chi_giao, trang_thai_giao, ghi_chu, phuong_thuc))
             id_hoa_don = cursor.lastrowid
 
-            # 3. Lưu chi tiết & Trừ kho[cite: 15]
+            # 3. Lưu chi tiết & Trừ kho (ĐÃ CẬP NHẬT ĐỂ LẤY GIÁ VỐN)
             for p_id, item in cart_data.items():
                 qty = item['qty']
                 price = float(item['info']['gia_ban'])
                 
-                cursor.execute("INSERT INTO chi_tiet_hoa_don (id_hoa_don, id_san_pham, so_luong, don_gia) VALUES (%s, %s, %s, %s)", 
-                               (id_hoa_don, p_id, qty, price))
+                # --- PHẦN SỬA MỚI: Lấy giá nhập từ bảng san_pham để làm giá vốn ---
+                cursor.execute("SELECT gia_nhap_gan_nhat FROM san_pham WHERE id = %s", (p_id,))
+                res_sp = cursor.fetchone()
+                # res_sp có thể là tuple hoặc dict tùy theo cursor, ở đây là cursor mặc định nên là tuple
+                gia_von = res_sp[0] if res_sp else 0 
+                # ----------------------------------------------------------------
+
+                # CẬP NHẬT: Thêm cột gia_von vào câu lệnh INSERT
+                sql_ct = """
+                    INSERT INTO chi_tiet_hoa_don (id_hoa_don, id_san_pham, so_luong, don_gia, gia_von) 
+                    VALUES (%s, %s, %s, %s, %s)
+                """
+                cursor.execute(sql_ct, (id_hoa_don, p_id, qty, price, gia_von))
                 
+                # Trừ kho
                 cursor.execute("UPDATE san_pham SET so_luong_ton = so_luong_ton - %s WHERE id = %s", 
                                (qty, p_id))
-
-            # 4. Cập nhật điểm khách hàng[cite: 15]
-            if final_customer_id and (points_earned > 0 or points_used > 0):
-                sql_diem = "UPDATE khach_hang SET diem_tich_luy = diem_tich_luy - %s + %s WHERE id = %s"
-                cursor.execute(sql_diem, (points_used, points_earned, final_customer_id))
 
             # 5. QUAN TRỌNG: GHI LOG HOẠT ĐỘNG VÀO BẢNG MỚI TẠO
             hanh_dong = f"Đã thanh toán hóa đơn #{id_hoa_don} - Tổng: {total:,.0f}đ"

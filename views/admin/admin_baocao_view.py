@@ -152,8 +152,9 @@ class AdminBaoCaoView(QWidget):
         w = QWidget()
         l = QVBoxLayout(w)
         self.table_inventory = QTableWidget()
-        self.table_inventory.setColumnCount(4)
-        self.table_inventory.setHorizontalHeaderLabels(["ID", "Sản Phẩm", "Tồn", "Nguồn"])
+        # Sửa thành 5 cột cho khớp với dữ liệu hàng hủy thực tế
+        self.table_inventory.setColumnCount(5) 
+        self.table_inventory.setHorizontalHeaderLabels(["ID", "Sản Phẩm", "SL Hủy", "Ngày Hủy", "Lý Do"])
         self.table_inventory.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         l.addWidget(self.table_inventory)
         return w

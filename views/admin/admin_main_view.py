@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-# ===== IMPORT CÁC VIEW (Tuyệt đối không import LoginView ở đây) =====
+# ===== IMPORT CÁC VIEW =====
 from views.admin.admin_nhanvien_view import AdminNhanVienView
 from views.admin.admin_dashboard_view import AdminDashboardView
 from views.admin.admin_ncc_view import AdminNCCView
@@ -16,11 +16,16 @@ from views.admin.admin_sanpham_view import AdminSanPhamView
 from views.admin.admin_log_view import AdminLogView
 from views.admin.admin_duyet_huy_view import AdminDuyetHuyView 
 from views.nv.nv_kho_history_view import NvKhoHistoryView
+from views.admin.admin_order_view import AdminOrderView 
+from models.baocao_model import BaoCaoModel
+from controllers.admin_baocao_controller import AdminBaoCaoController
 
 # ===== IMPORT CONTROLLER & MODEL =====
 from controllers.nv_kho_history_controller import NvKhoHistoryController
 from controllers.admin_sanpham_controller import AdminSanPhamController
 from controllers.admin_duyet_huy_controller import AdminDuyetHuyController 
+from controllers.admin_order_controller import AdminOrderController 
+from models.hoadon_model import HoaDonModel 
 from models.kiemkho_model import KiemKhoModel 
 
 class AdminMainView(QMainWindow):
@@ -54,6 +59,7 @@ class AdminMainView(QMainWindow):
         self.btn_dashboard = self.create_menu_btn("📊 Dashboard")
         self.btn_nhanvien = self.create_menu_btn("👥 Quản lý Nhân viên")
         self.btn_sanpham = self.create_menu_btn("🍎 Quản lý Sản phẩm")
+        self.btn_order = self.create_menu_btn("📜 Quản lý Đơn hàng") 
         self.btn_kho = self.create_menu_btn("📦 Lịch sử nhập kho") 
         self.btn_duyet_huy = self.create_menu_btn("🔔 Phê duyệt báo hủy")
         self.btn_ncc = self.create_menu_btn("🏭 Nhà cung cấp")
@@ -62,7 +68,8 @@ class AdminMainView(QMainWindow):
         
         self.menu_list = [
             self.btn_dashboard, self.btn_nhanvien, self.btn_sanpham, 
-            self.btn_kho, self.btn_duyet_huy, self.btn_ncc, self.btn_baocao, self.btn_log
+            self.btn_order, self.btn_kho, self.btn_duyet_huy, 
+            self.btn_ncc, self.btn_baocao, self.btn_log
         ]
         
         for btn in self.menu_list:
@@ -79,51 +86,65 @@ class AdminMainView(QMainWindow):
 
         main_layout.addWidget(self.sidebar)
 
-        # ===== CONTENT AREA (Sử dụng try-except để bắt lỗi khởi tạo trang) =====
+        # ===== CONTENT AREA =====
         self.stack = QStackedWidget()
         try:
             # 1. Khởi tạo các trang nội dung
             self.page_dashboard = AdminDashboardView()
             self.page_nhanvien = AdminNhanVienView()
             self.page_sanpham = AdminSanPhamView()
+            self.page_order = AdminOrderView() 
             self.page_kho = NvKhoHistoryView() 
             self.page_duyet_huy = AdminDuyetHuyView() 
             self.page_ncc = AdminNCCView()
             self.page_baocao = AdminBaoCaoView()
             self.page_log = AdminLogView()
 
-            # 2. Khởi tạo các Controller
+            # 2. Khởi tạo các Controller & Model
             self.ctrl_kho = NvKhoHistoryController(self.page_kho)
             self.ctrl_sanpham = AdminSanPhamController(self.page_sanpham, self.user_data)
+            
+            # Đã sửa logic khởi tạo Controller Đơn hàng
+            self.model_hoadon = HoaDonModel()
+            self.ctrl_order = AdminOrderController(self.page_order, self.model_hoadon)
+            
             self.model_kiemkho = KiemKhoModel() 
             self.ctrl_duyet_huy = AdminDuyetHuyController(self.page_duyet_huy, self.model_kiemkho) 
 
-            # 3. Thêm vào stack[cite: 10]
+            self.model_baocao = BaoCaoModel()
+            self.ctrl_baocao = AdminBaoCaoController(self.page_baocao, self.model_baocao)
+
+            # 3. Thêm vào stack (Thứ tự khớp với nút bấm)
             self.stack.addWidget(self.page_dashboard)  # 0
             self.stack.addWidget(self.page_nhanvien)   # 1
             self.stack.addWidget(self.page_sanpham)    # 2
-            self.stack.addWidget(self.page_kho)        # 3
-            self.stack.addWidget(self.page_duyet_huy)  # 4
-            self.stack.addWidget(self.page_ncc)        # 5
-            self.stack.addWidget(self.page_baocao)     # 6
-            self.stack.addWidget(self.page_log)        # 7
+            self.stack.addWidget(self.page_order)      # 3
+            self.stack.addWidget(self.page_kho)        # 4
+            self.stack.addWidget(self.page_duyet_huy)  # 5
+            self.stack.addWidget(self.page_ncc)        # 6
+            self.stack.addWidget(self.page_baocao)     # 7
+            self.stack.addWidget(self.page_log)        # 8
 
             main_layout.addWidget(self.stack)
 
-            # 4. Kết nối sự kiện chuyển trang[cite: 10]
+            # 4. Kết nối sự kiện chuyển trang
             self.btn_dashboard.clicked.connect(lambda: self.switch_page(0, self.btn_dashboard))
             self.btn_nhanvien.clicked.connect(lambda: self.switch_page(1, self.btn_nhanvien))
             self.btn_sanpham.clicked.connect(lambda: self.switch_page(2, self.btn_sanpham))
-            self.btn_kho.clicked.connect(lambda: self.switch_page(3, self.btn_kho))
-            self.btn_duyet_huy.clicked.connect(lambda: self.switch_page(4, self.btn_duyet_huy))
-            self.btn_ncc.clicked.connect(lambda: self.switch_page(5, self.btn_ncc))
-            self.btn_baocao.clicked.connect(lambda: self.switch_page(6, self.btn_baocao))
-            self.btn_log.clicked.connect(lambda: self.switch_page(7, self.btn_log))
+            self.btn_order.clicked.connect(lambda: self.switch_page(3, self.btn_order))
+            self.btn_kho.clicked.connect(lambda: self.switch_page(4, self.btn_kho))
+            self.btn_duyet_huy.clicked.connect(lambda: self.switch_page(5, self.btn_duyet_huy))
+            self.btn_ncc.clicked.connect(lambda: self.switch_page(6, self.btn_ncc))
+            self.btn_baocao.clicked.connect(lambda: self.switch_page(7, self.btn_baocao))
+            self.btn_log.clicked.connect(lambda: self.switch_page(8, self.btn_log))
             
+            # Mặc định mở trang Dashboard
             self.switch_page(0, self.btn_dashboard)
             
         except Exception as e:
+            import traceback
             print(f"CRITICAL ERROR tại AdminMainView: {e}")
+            traceback.print_exc() # Hiện chi tiết lỗi để dễ sửa
 
     def create_menu_btn(self, text):
         btn = QPushButton(text)
@@ -137,15 +158,15 @@ class AdminMainView(QMainWindow):
         return btn
 
     def switch_page(self, index, clicked_btn):
-        """Hàm chuyển trang và tự động làm mới dữ liệu[cite: 10]"""
         self.stack.setCurrentIndex(index)
         
         try:
             if index == 0: self.page_dashboard.load_real_data()
             if index == 2: self.ctrl_sanpham.load_data()
-            if index == 3: self.ctrl_kho.load_history()
-            if index == 4: self.ctrl_duyet_huy.load_data() 
-            if index == 7: self.page_log.load_data()
+            if index == 3: self.ctrl_order.load_orders() 
+            if index == 4: self.ctrl_kho.load_history()
+            if index == 5: self.ctrl_duyet_huy.load_data() 
+            if index == 8: self.page_log.load_data()
         except Exception as e:
             print(f"Lỗi khi load dữ liệu trang {index}: {e}")
 
@@ -154,10 +175,8 @@ class AdminMainView(QMainWindow):
         clicked_btn.setChecked(True)
 
     def handle_logout(self):
-        """Phá vỡ vòng lặp import bằng cách import tại chỗ[cite: 10]"""
         from views.login_view import LoginView
         from controllers.login_controller import LoginController
-        
         self.login_window = LoginView()
         self.login_controller = LoginController(self.login_window)
         self.login_window.show()

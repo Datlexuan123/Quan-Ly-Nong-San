@@ -88,3 +88,27 @@ class BaoCaoModel:
         except Exception as e:
             print(f"Lỗi KPI: {e}")
             return 0, 0, 0, 0
+        
+    def get_canceled_stock(self):
+        """Lấy danh sách các mặt hàng đã thực sự bị hủy từ bảng thanh_ly_huy_hang"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(dictionary=True)
+            sql = """
+                SELECT 
+                    h.id, 
+                    s.ten_sp, 
+                    h.so_luong_huy, 
+                    h.ngay_huy, 
+                    h.ly_do 
+                FROM thanh_ly_huy_hang h
+                JOIN san_pham s ON h.id_san_pham = s.id
+                ORDER BY h.ngay_huy DESC
+            """
+            cursor.execute(sql)
+            res = cursor.fetchall()
+            conn.close()
+            return res
+        except Exception as e:
+            print(f"Lỗi lấy dữ liệu hàng hủy: {e}")
+            return []

@@ -94,3 +94,50 @@ class HoaDonModel:
         finally:
             if cursor: cursor.close()
             if conn: conn.close()
+        
+    def get_order_details(self, order_id):
+        """Lấy chi tiết các món hàng trong một hóa đơn từ database"""
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**self.db_config)
+            cursor = conn.cursor(dictionary=True)
+            # JOIN với bảng sản phẩm để lấy tên sản phẩm
+            sql = """
+                SELECT s.ten_sp, ct.so_luong, ct.don_gia, ct.thanh_tien
+                FROM chi_tiet_hoa_don ct
+                JOIN san_pham s ON ct.id_san_pham = s.id
+                WHERE ct.id_hoa_don = %s
+            """
+            cursor.execute(sql, (order_id,))
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Lỗi lấy chi tiết hóa đơn: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
+
+    def get_all_orders_admin(self):
+        """Hàm dành riêng cho Admin để xem toàn bộ lịch sử đơn hàng"""
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**self.db_config)
+            cursor = conn.cursor(dictionary=True)
+            # Lấy tất cả, không phân biệt loai_don_hang
+            query = """
+                SELECT h.*, k.ho_ten as ten_khach, n.ho_ten as ten_nv
+                FROM hoa_don h
+                LEFT JOIN khach_hang k ON h.id_khach_hang = k.id
+                LEFT JOIN nhan_vien n ON h.id_nhan_vien = n.id
+                ORDER BY h.ngay_lap DESC
+            """
+            cursor.execute(query)
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Lỗi lấy tất cả đơn hàng: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
