@@ -81,7 +81,7 @@ class NvMainView(QMainWindow):
         self.tabs_kho = QTabWidget()
         self.page_nhaphang = NvKhoView(self.user_data)
         self.page_kho_history = NvKhoHistoryView()
-        
+        self.page_kho_history.controller = self.page_nhaphang.controller
         self.tabs_kho.addTab(self.page_nhaphang, "📦 Nhập hàng mới")
         self.tabs_kho.addTab(self.page_kho_history, "📜 Lịch sử nhập kho")
         layout_kho.addWidget(self.tabs_kho)
@@ -125,9 +125,12 @@ class NvMainView(QMainWindow):
 
         self.switch_page(self.page_banhang, self.btn_banhang)
 
+    # views/nv/nv_main_view.py
+
     def on_kho_tab_changed(self, index):
-        if index == 1:
-            self.ctrl_kho_history.load_history()
+        if index == 1: # Tab lịch sử
+            # SỬA: Đổi load_data() thành display_data() cho khớp với file View
+            self.page_kho_history.display_data()
 
     def create_nav_btn(self, text):
         btn = QPushButton(text)

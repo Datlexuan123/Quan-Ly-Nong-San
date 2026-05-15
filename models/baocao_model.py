@@ -89,8 +89,10 @@ class BaoCaoModel:
             print(f"Lỗi KPI: {e}")
             return 0, 0, 0, 0
         
+    # baocao_model.py
+
     def get_canceled_stock(self):
-        """Lấy danh sách các mặt hàng đã thực sự bị hủy từ bảng thanh_ly_huy_hang"""
+        """Lấy danh sách hàng hủy, sắp xếp theo ID tăng dần từ 1 trở lên"""
         try:
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
@@ -103,7 +105,8 @@ class BaoCaoModel:
                     h.ly_do 
                 FROM thanh_ly_huy_hang h
                 JOIN san_pham s ON h.id_san_pham = s.id
-                ORDER BY h.ngay_huy DESC
+                -- SỬA TẠI ĐÂY: Sắp xếp theo h.id tăng dần (ASC)
+                ORDER BY h.id ASC 
             """
             cursor.execute(sql)
             res = cursor.fetchall()

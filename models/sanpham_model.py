@@ -9,13 +9,18 @@ class SanPhamModel:
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
             # SỬA: Thêm subquery tính AVG(gia_nhap) làm giá vốn TB
+            # Sửa lại SQL trong hàm get_all của SanPhamModel
             sql = """
-                SELECT s.*, d.ten_dvt,
-                (SELECT AVG(gia_nhap) FROM chi_tiet_nhap_hang WHERE id_san_pham = s.id) as gia_von_tb
-                FROM san_pham s
-                LEFT JOIN don_vi_tinh d ON s.id_dvt = d.id
-                WHERE s.ten_sp LIKE %s
-                ORDER BY s.id ASC
+            SELECT s.*, d.ten_dvt,
+            (
+            SELECT SUM(ct.thanh_tien) / SUM(ct.so_luong_nhap) 
+            FROM chi_tiet_nhap_hang ct 
+            WHERE ct.id_san_pham = s.id
+            ) as gia_von_tb
+            FROM san_pham s
+            LEFT JOIN don_vi_tinh d ON s.id_dvt = d.id
+            WHERE s.ten_sp LIKE %s
+            ORDER BY s.id ASC
             """
             cursor.execute(sql, (f"%{search_text}%",))
             return cursor.fetchall()

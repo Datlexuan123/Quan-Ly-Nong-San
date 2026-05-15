@@ -96,16 +96,19 @@ class AdminBaoCaoView(QWidget):
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
             query = """
-                SELECT 
-                    DATE(h.ngay_lap) as ngay, 
-                    COUNT(DISTINCT h.id) as so_don,
-                    SUM(h.tong_tien) as doanh_thu,
-                    SUM(ct.so_luong * (ct.don_gia - IFNULL((SELECT AVG(gia_nhap) FROM chi_tiet_nhap_hang WHERE id_san_pham = ct.id_san_pham), 0))) as loi_nhuan
-                FROM hoa_don h
-                JOIN chi_tiet_hoa_don ct ON h.id = ct.id_hoa_don
-                WHERE DATE(h.ngay_lap) BETWEEN %s AND %s
-                GROUP BY DATE(h.ngay_lap) ORDER BY ngay ASC
-            """
+        SELECT 
+            DATE(h.ngay_lap) as ngay, 
+            COUNT(DISTINCT h.id) as so_don,
+            SUM(h.tong_tien) as doanh_thu,
+            -- CÔNG THỨC SỬA TẠI ĐÂY:
+            -- Lợi nhuận = Tổng (Thành tiền bán - (Số lượng * Giá vốn thực tế lúc bán))
+            SUM(ct.thanh_tien - (ct.so_luong * ct.gia_von)) as loi_nhuan
+        FROM hoa_don h
+        JOIN chi_tiet_hoa_don ct ON h.id = ct.id_hoa_don
+        WHERE DATE(h.ngay_lap) BETWEEN %s AND %s
+        GROUP BY DATE(h.ngay_lap)
+        ORDER BY ngay ASC
+         """
             cursor.execute(query, (d1, d2))
             rows = cursor.fetchall()
             
@@ -159,22 +162,39 @@ class AdminBaoCaoView(QWidget):
         l.addWidget(self.table_inventory)
         return w
 
+    # views/admin/admin_baocao_view.py
+
     def load_inventory_data(self):
+        """
+        Hàm này sẽ được Controller gọi để đổ dữ liệu hàng hủy vào bảng.
+        Nếu Tâm muốn tự gọi trong View, hãy dùng đoạn code này:
+        """
         try:
-            conn = get_connection()
-            cursor = conn.cursor(dictionary=True)
+            # Lưu ý: Vì Tâm đã có AdminBaoCaoController xử lý việc này, 
+            # nên thực tế hàm này trong View có thể để trống hoặc 
+            # dùng để bổ trợ. Dưới đây là logic đổ dữ liệu chuẩn:
+            
+            from models.baocao_model import BaoCaoModel
+            model = BaoCaoModel()
+            data = model.get_canceled_stock()
+            
             self.table_inventory.setRowCount(0)
-            cursor.execute("SELECT id, ten_sp, so_luong_ton, nguon_goc FROM san_pham")
-            for r in cursor.fetchall():
+            for r in data:
                 row = self.table_inventory.rowCount()
                 self.table_inventory.insertRow(row)
+                
+                # Đổ dữ liệu khớp với 5 cột: ID | Sản Phẩm | SL Hủy | Ngày Hủy | Lý Do
                 self.table_inventory.setItem(row, 0, QTableWidgetItem(str(r['id'])))
                 self.table_inventory.setItem(row, 1, QTableWidgetItem(r['ten_sp']))
-                self.table_inventory.setItem(row, 2, QTableWidgetItem(str(r['so_luong_ton'])))
-                self.table_inventory.setItem(row, 3, QTableWidgetItem(str(r['nguon_goc'])))
-            conn.close()
+                self.table_inventory.setItem(row, 2, QTableWidgetItem(str(r['so_luong_huy'])))
+                
+                # Định dạng ngày cho gọn (Ngày/Tháng/Năm Giờ:Phút)
+                thoi_gian = r['ngay_huy'].strftime("%d/%m/%Y %H:%M") if r['ngay_huy'] else "N/A"
+                self.table_inventory.setItem(row, 3, QTableWidgetItem(thoi_gian))
+                
+                self.table_inventory.setItem(row, 4, QTableWidgetItem(str(r['ly_do'])))
         except Exception as e:
-            print(f"Lỗi tải kho: {e}")
+            print(f"Lỗi hiển thị hàng hủy: {e}")
 
     def create_customer_tab(self):
         w = QWidget()

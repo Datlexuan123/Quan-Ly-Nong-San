@@ -40,11 +40,14 @@ class NvKhoView(QWidget):
         main_layout.addWidget(top_frame)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["ID", "Tên sản phẩm", "Tồn kho", "Số lượng nhập", "Giá nhập"])
-        self.table.horizontalHeader().setStretchLastSection(True)
-        main_layout.addWidget(self.table)
+        self.table.setColumnCount(6) # Tăng từ 5 lên 6
+        self.table.setHorizontalHeaderLabels([
+            "ID", "Tên sản phẩm", "ĐVT", "Tồn kho", "Số lượng nhập", "Giá nhập"
+        ])
+        self.table.setColumnWidth(2, 70) # Chỉnh độ rộng cho cột ĐVT
 
+        main_layout.addWidget(self.table)
+        
         self.btn_save = QPushButton("💾 XÁC NHẬN NHẬP HÀNG")
         self.btn_save.setFixedHeight(45)
         self.btn_save.setStyleSheet("background-color:#2e7d32; color:white; font-weight:bold;")
@@ -66,16 +69,21 @@ class NvKhoView(QWidget):
             for row, p in enumerate(products):
                 self.table.setItem(row, 0, QTableWidgetItem(str(p["id"])))
                 self.table.setItem(row, 1, QTableWidgetItem(p["ten_sp"])) 
-                self.table.setItem(row, 2, QTableWidgetItem(str(p["so_luong_ton"])))
+                
+                # 2. CỘT MỚI: Đơn vị tính
+                self.table.setItem(row, 2, QTableWidgetItem(p.get("ten_dvt") or "Kg"))
+
+                # Dịch các cột cũ sang phải
+                self.table.setItem(row, 3, QTableWidgetItem(str(p["so_luong_ton"])))
 
                 spin_qty = QSpinBox()
                 spin_qty.setRange(0, 10000)
-                self.table.setCellWidget(row, 3, spin_qty)
+                self.table.setCellWidget(row, 4, spin_qty) # Cột 4
 
                 spin_price = QSpinBox()
                 spin_price.setRange(0, 100000000)
                 spin_price.setSingleStep(1000)
-                self.table.setCellWidget(row, 4, spin_price)
+                self.table.setCellWidget(row, 5, spin_price) # Cột 5
         except Exception as e:
             QMessageBox.critical(self, "Lỗi", f"Không thể tải dữ liệu: {e}")
 
@@ -86,8 +94,9 @@ class NvKhoView(QWidget):
         danh_sach_sp = []
 
         for row in range(self.table.rowCount()):
-            qty = self.table.cellWidget(row, 3).value()
-            price = self.table.cellWidget(row, 4).value()
+            # SỬA: Lấy dữ liệu từ cột 4 và 5 thay vì 3 và 4
+            qty = self.table.cellWidget(row, 4).value()
+            price = self.table.cellWidget(row, 5).value()
             
             if qty > 0:
                 id_sp = int(self.table.item(row, 0).text())
@@ -96,7 +105,6 @@ class NvKhoView(QWidget):
                     "so_luong": qty,
                     "gia": price
                 })
-
         if not danh_sach_sp:
             QMessageBox.warning(self, "Chú ý", "Vui lòng nhập số lượng cho ít nhất 1 sản phẩm!")
             return

@@ -25,10 +25,16 @@ class NvNhapHangController:
         try:
             conn = get_connection()
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, ten_sp, so_luong_ton FROM san_pham")
+            # SỬA: Thêm JOIN để lấy ten_dvt
+            sql = """
+                SELECT s.id, s.ten_sp, s.so_luong_ton, d.ten_dvt 
+                FROM san_pham s
+                LEFT JOIN don_vi_tinh d ON s.id_dvt = d.id
+            """
+            cursor.execute(sql)
             return cursor.fetchall()
         except Exception as e:
-            print(f"Lỗi: {e}"); return []
+            print(f"Lỗi lấy sản phẩm: {e}"); return []
         finally:
             if cursor: cursor.close()
             if conn: conn.close()
@@ -47,6 +53,8 @@ class NvNhapHangController:
             if conn: conn.close()
 
     def get_import_history(self):
+
+        """Cầu nối gọi dữ liệu lịch sử từ Model"""
         return self.import_model.get_import_history()
 
     def them_phieu_nhap(self, id_nhan_vien, id_ncc, danh_sach_sp):
